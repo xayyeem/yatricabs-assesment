@@ -24,6 +24,7 @@ exports.sendOtp = async (req, res) => {
         let otp;
         let result;
 
+        // Ensure the OTP is unique
         do {
             otp = otpGenerator.generate(6, {
                 upperCaseAlphabets: false,
@@ -36,9 +37,18 @@ exports.sendOtp = async (req, res) => {
         // OTP data
         const otpPayload = { email, otp };
         const htmlContent = otpTemplate(otpPayload);
-        const sended = await mailSender(email, 'Verification Mail', htmlContent);
+        console.log("Generated OTP Payload:", otpPayload); // Log OTP Payload for debugging
 
-        console.log(sended);
+        // Save OTP to DB
+        const otpInstance = new OTP({
+            email,
+            otp,
+        });
+        await otpInstance.save();
+
+        // Send OTP via email
+        const sended = await mailSender(email, 'Verification Mail', htmlContent);
+        console.log("OTP sent response:", sended); // Log the response from mailSender
 
         res.status(200).json({
             message: 'OTP sent successfully',
@@ -52,6 +62,7 @@ exports.sendOtp = async (req, res) => {
         });
     }
 };
+
 
 
 // signup
@@ -79,6 +90,9 @@ exports.signup = async (req, res) => {
 
         // Find most recent OTP
         const recentOtp = await OTP.findOne({ email }).sort({ createdAt: -1 }).limit(1);
+        console.log('Recent OTP:', recentOtp);  // Log OTP from DB
+        console.log('Provided OTP:', otp);  // Log OTP from request
+
         if (!recentOtp || recentOtp.otp !== otp) {
             return res.status(400).json({
                 message: 'Invalid OTP',
@@ -105,12 +119,13 @@ exports.signup = async (req, res) => {
         });
     } catch (error) {
         console.error('Error creating user', error);
-        res.status(500).json({
+        return res.status(500).json({
             message: 'Internal server error',
             success: false
         });
     }
 };
+
 
 exports.login = async (req, res) => {
     try {
