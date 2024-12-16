@@ -24,7 +24,6 @@ exports.sendOtp = async (req, res) => {
         let otp;
         let result;
 
-        // Ensure the OTP is unique
         do {
             otp = otpGenerator.generate(6, {
                 upperCaseAlphabets: false,
@@ -37,18 +36,9 @@ exports.sendOtp = async (req, res) => {
         // OTP data
         const otpPayload = { email, otp };
         const htmlContent = otpTemplate(otpPayload);
-        console.log("Generated OTP Payload:", otpPayload); // Log OTP Payload for debugging
-
-        // Save OTP to DB
-        const otpInstance = new OTP({
-            email,
-            otp,
-        });
-        await otpInstance.save();
-
-        // Send OTP via email
         const sended = await mailSender(email, 'Verification Mail', htmlContent);
-        console.log("OTP sent response:", sended); // Log the response from mailSender
+
+        console.log(sended);
 
         res.status(200).json({
             message: 'OTP sent successfully',
@@ -64,14 +54,72 @@ exports.sendOtp = async (req, res) => {
 };
 
 
-
 // signup
 
-exports.signup = async (req, res) => {
+// exports.signup = async (req, res) => {
+//     try {
+//         const { name, email, password, phoneNumber, role, otp } = req.body;
+
+//         // Validate fields
+//         if (!name || !email || !password || !phoneNumber || !role || !otp) {
+//             return res.status(400).json({
+//                 message: 'All fields are required',
+//                 success: false
+//             });
+//         }
+
+//         // Check if user already exists
+//         const isPresent = await User.findOne({ email });
+//         if (isPresent) {
+//             return res.status(400).json({
+//                 message: 'User already exists',
+//                 success: false
+//             });
+//         }
+
+//         // Find most recent OTP
+//         const recentOtp = await OTP.findOne({ email }).sort({ createdAt: -1 }).exec();
+//         console.log('Recent OTP:', recentOtp);
+
+//         if (!recentOtp || recentOtp.otp !== otp) {
+//             return res.status(400).json({
+//                 message: 'Invalid OTP ',
+//                 success: false
+//             });
+//         }
+
+//         // Hash password
+//         const hashedPassword = await bcrypt.hash(password, 10);
+
+//         // Create new user
+//         const user = await User.create({
+//             name,
+//             email,
+//             password: hashedPassword,
+//             phoneNumber,
+//             role
+//         });
+
+//         return res.status(200).json({
+//             message: 'User created successfully',
+//             success: true,
+//             data: user
+//         });
+//     } catch (error) {
+//         console.error('Error creating user', error);
+//         res.status(500).json({
+//             message: 'Internal server error',
+//             success: false
+//         });
+//     }
+// };
+
+exports.signUp = async (req, res) => {
     try {
+        // data fetched from req body
         const { name, email, password, phoneNumber, role, otp } = req.body;
 
-        // Validate fields
+        // check validation
         if (!name || !email || !password || !phoneNumber || !role || !otp) {
             return res.status(400).json({
                 message: 'All fields are required',
@@ -79,31 +127,34 @@ exports.signup = async (req, res) => {
             });
         }
 
-        // Check if user already exists
-        const isPresent = await User.findOne({ email });
-        if (isPresent) {
-            return res.status(400).json({
+
+        // check if the user already exists (case insensitive check)
+        const existingUser = await User.findOne({ email: email.toLowerCase() });
+
+        if (existingUser) {
+            return res.status(403).json({
                 message: 'User already exists',
                 success: false
             });
         }
 
-        // Find most recent OTP
-        const recentOtp = await OTP.findOne({ email }).sort({ createdAt: -1 }).limit(1);
-        console.log('Recent OTP:', recentOtp);  // Log OTP from DB
-        console.log('Provided OTP:', otp);  // Log OTP from request
-
-        if (!recentOtp || recentOtp.otp !== otp) {
+        // find most recent OTP for the user
+        const recentOTP = await OTP.find({ email }).sort({ createdAt: -1 }).limit(1);
+        console.log('Recent OTP:', recentOTP);
+        // validate OTP
+        if (!recentOTP) {
             return res.status(400).json({
-                message: 'Invalid OTP',
+                message: 'OTP not found',
                 success: false
             });
         }
 
-        // Hash password
+        // hash password
         const hashedPassword = await bcrypt.hash(password, 10);
+        // console.log('Hashed Password:', hashedPassword);
 
-        // Create new user
+
+        // create user entry in the database
         const user = await User.create({
             name,
             email,
@@ -112,20 +163,21 @@ exports.signup = async (req, res) => {
             role
         });
 
+        // return successful response
         return res.status(200).json({
             message: 'User created successfully',
             success: true,
             data: user
         });
+
     } catch (error) {
-        console.error('Error creating user', error);
+        console.log('Failed to create user', error.message);
         return res.status(500).json({
-            message: 'Internal server error',
+            message: 'Failed to create user',
             success: false
         });
     }
 };
-
 
 exports.login = async (req, res) => {
     try {
@@ -185,3 +237,18 @@ exports.login = async (req, res) => {
         });
     }
 };
+
+exports.logout = async (req, res) => {
+    try {
+        return res.status(200).clearCookie('token', { httpOnly: true }).json({
+            success: true,
+            message: 'Logged out successfully'
+        })
+    } catch (error) {
+        console.error('Error logging out', error)
+        return res.status(500).json({
+            message: 'Internal server error',
+            success: false
+        })
+    }
+}

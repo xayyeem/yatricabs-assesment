@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { otpTemplate } = require('../mail/template/emailVerificationTemplate')
+
 const otpSchema = new mongoose.Schema({
     email: {
         type: String,
@@ -12,7 +13,7 @@ const otpSchema = new mongoose.Schema({
     createdAt: {
         type: Date,
         default: Date.now,
-        expires: 60 * 5
+        expires: 300
     }
 })
 
